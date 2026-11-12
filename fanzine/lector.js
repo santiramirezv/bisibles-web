@@ -23,6 +23,7 @@
   var css = '' +
     '.fz-ov{position:fixed;inset:0;z-index:2147483000;background:' + C.fondo + ';display:flex;flex-direction:column;color:' + C.crema + ';font-family:inherit;opacity:0;transition:opacity .25s}' +
     '.fz-ov.fz-in{opacity:1}' +
+    '.fz-ov.fz-marco{position:absolute;inset:auto;left:0;right:0;top:0;height:100vh}' +
     '.fz-top{display:flex;align-items:center;gap:12px;padding:12px 16px;flex:0 0 auto}' +
     '.fz-tit{font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:13px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
     '.fz-tit b{color:' + C.amarillo + '}' +
@@ -152,7 +153,8 @@
     ov.appendChild(top); ov.appendChild(main); ov.appendChild(this.thumbs); ov.appendChild(bottom);
     document.body.appendChild(ov);
     this.overflowPrevio = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
+    if (enMarco()) this.seguirVisible();
+    else document.documentElement.style.overflow = 'hidden';
     requestAnimationFrame(function () { ov.classList.add('fz-in'); });
 
     this.bClose.onclick = function () { s.cerrar(); };
@@ -195,6 +197,43 @@
     this.medir(true, ini);
     setTimeout(function () { s.hint.style.transition = 'opacity 1s'; s.hint.style.opacity = '0'; }, 3500);
     this.bClose.focus();
+  };
+
+  // Dentro de un iframe que se estira al alto del contenido (Canva Code), 100vh es el alto de toda
+  // la página. Se mide qué franja del documento está en pantalla con tiras observadas y el lector
+  // ocupa solo esa franja; sigue al scroll de la página que contiene al iframe.
+  Lector.prototype.seguirVisible = function () {
+    var s = this, ov = this.ov;
+    ov.classList.add('fz-marco');
+    var cont = this.tiras = el('div');
+    var alto = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+    cont.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:' + alto + 'px;opacity:0;pointer-events:none;z-index:-1';
+    var PASO = 40, vis = {};
+    var y0 = window.__fzClickY != null ? window.__fzClickY + window.scrollY : window.scrollY;
+    var est = Math.min(window.innerHeight, (screen.availHeight || 800) - 140, 1000);
+    ov.style.top = Math.max(0, y0 - est / 2) + 'px'; ov.style.height = est + 'px';
+    function aplicar() {
+      var top = Infinity, bot = -Infinity;
+      for (var k in vis) { var r = vis[k]; if (r.top < top) top = r.top; if (r.bottom > bot) bot = r.bottom; }
+      if (bot - top < 240) return;
+      var base = cont.getBoundingClientRect().top;
+      ov.style.top = (top - base) + 'px';
+      ov.style.height = (bot - top) + 'px';
+      s.medir();
+    }
+    this.io = new IntersectionObserver(function (es) {
+      es.forEach(function (e) {
+        if (e.isIntersecting && e.intersectionRect.height > 0) vis[e.target.__i] = e.intersectionRect;
+        else delete vis[e.target.__i];
+      });
+      aplicar();
+    }, { threshold: [0, .25, .5, .75, 1] });
+    for (var i = 0; i * PASO < alto; i++) {
+      var t = el('div'); t.__i = i;
+      t.style.cssText = 'position:absolute;left:0;width:1px;top:' + i * PASO + 'px;height:' + PASO + 'px';
+      cont.appendChild(t); this.io.observe(t);
+    }
+    document.body.appendChild(cont);
   };
 
   Lector.prototype.medir = function (primera, pagina) {
@@ -352,6 +391,7 @@
     document.removeEventListener('keydown', this.onKey);
     window.removeEventListener('resize', this.onResize);
     document.documentElement.style.overflow = this.overflowPrevio;
+    if (this.io) { this.io.disconnect(); this.tiras.remove(); }
     this.ov.classList.remove('fz-in');
     setTimeout(function () { s.ov.remove(); }, 250);
     if (this.prevFocus && this.prevFocus.focus) this.prevFocus.focus();
@@ -363,6 +403,7 @@
     var b = el('button', 'fz-btn' + (cls ? ' ' + cls : ''), ico);
     b.type = 'button'; b.setAttribute('aria-label', label); b.title = label; return b;
   }
+  function enMarco() { try { return window.self !== window.top; } catch (e) { return true; } }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
   function atrapar(e, cont) {
     var f = Array.prototype.filter.call(cont.querySelectorAll('button'), function (b) { return !b.disabled && b.offsetParent !== null; });
@@ -398,6 +439,7 @@
     var t = e.target.closest && e.target.closest('[data-fanzine]');
     if (!t) return;
     e.preventDefault();
+    window.__fzClickY = e.clientY;
     abrir(t);
   });
 
