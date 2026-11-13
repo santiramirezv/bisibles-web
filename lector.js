@@ -210,12 +210,26 @@
     cont.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:' + alto + 'px;opacity:0;pointer-events:none;z-index:-1';
     var PASO = 40, vis = {};
     var y0 = window.__fzClickY != null ? window.__fzClickY + window.scrollY : window.scrollY;
-    var est = Math.min(window.innerHeight, (screen.availHeight || 800) - 140, 1000);
-    ov.style.top = Math.max(0, y0 - est / 2) + 'px'; ov.style.height = est + 'px';
+    // Tope: nunca más alto que la pantalla del aparato (descontando barras del navegador).
+    var tope = Math.max(360, Math.min(window.innerHeight, (screen.availHeight || 900) - 150));
+    var confiable = true;
+    ov.style.top = Math.max(0, y0 - tope / 2) + 'px'; ov.style.height = tope + 'px';
     function aplicar() {
+      if (!confiable) return;
       var top = Infinity, bot = -Infinity;
       for (var k in vis) { var r = vis[k]; if (r.top < top) top = r.top; if (r.bottom > bot) bot = r.bottom; }
       if (bot - top < 240) return;
+      // Algunos navegadores (Safari en Mac) no recortan la medición a la pantalla real dentro de un iframe
+      // de otro dominio: si "lo visible" es más alto que la pantalla, no se le cree y el lector queda
+      // centrado donde se hizo clic, con el alto de la pantalla.
+      // Una pantalla no puede mostrar más que su propio alto: si lo "visible" lo supera, la medición no sirve.
+      if (bot - top > (screen.height || 1200) + 40) {
+        confiable = false; s.io.disconnect();
+        ov.style.top = Math.max(0, Math.min(y0 - tope / 2, alto - tope)) + 'px';
+        ov.style.height = tope + 'px';
+        s.medir();
+        return;
+      }
       var base = cont.getBoundingClientRect().top;
       ov.style.top = (top - base) + 'px';
       ov.style.height = (bot - top) + 'px';
