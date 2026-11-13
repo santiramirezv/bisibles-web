@@ -16,9 +16,10 @@
   var C = { panel: '#22093F', crema: '#FFFAF4', amarillo: '#F5B323' };
 
   var css = '' +
-    '.mfj{position:fixed;left:0;right:0;top:0;z-index:2147482000;margin:0!important;box-shadow:0 6px 20px rgba(22,6,38,.35);visibility:hidden}' +
+    '.mfj{position:fixed;left:0;right:0;top:0;z-index:2147482000;margin:0!important;box-shadow:0 6px 20px rgba(22,6,38,.35);visibility:hidden;opacity:0}' +
     '.mfj.mfj-marco{position:absolute}' +
-    '.mfj.mfj-on{visibility:visible}' +
+    '.mfj.mfj-on{visibility:visible;opacity:1;transition:opacity .18s}' +
+    '.mfj.mfj-on.mfj-mov{opacity:0;transition:none}' +
     '.mfj-lista{position:fixed;left:0;right:0;z-index:2147482001;display:none;flex-direction:column;background:' + C.panel + ';padding:8px 16px 16px;box-shadow:0 12px 24px rgba(22,6,38,.35);box-sizing:border-box}' +
     '.mfj-lista.mfj-marco{position:absolute}' +
     '.mfj-lista.mfj-abierta{display:flex}' +
@@ -138,11 +139,21 @@
       var base = cont.getBoundingClientRect().top;
       var t = top - base;
       var barraAbajo = barra.getBoundingClientRect().bottom - base;
-      arriba = t;
-      copia.style.top = t + 'px';
-      ubicarLista();
-      setVisible(barraAbajo < t + 2);
+      var debe = barraAbajo < t + 2;
+      // La medición llega un instante después del scroll: mover la barra en cada aviso la hace temblar.
+      // Mientras se scrollea la barra se esconde, y aparece en su lugar cuando el scroll se detiene.
+      if (!debe) { clearTimeout(espera); setVisible(false); return; }
+      if (mostrar && t !== arriba) { copia.classList.add('mfj-mov'); if (abierta) cerrarLista(); }
+      clearTimeout(espera);
+      espera = setTimeout(function () {
+        arriba = t;
+        copia.style.top = t + 'px';
+        ubicarLista();
+        setVisible(true);
+        copia.classList.remove('mfj-mov');
+      }, mostrar ? 140 : 60);
     }
+    var espera = null;
     io = new IntersectionObserver(function (es) {
       es.forEach(function (e) {
         if (e.isIntersecting && e.intersectionRect.height > 0) vis[e.target.__i] = e.intersectionRect;

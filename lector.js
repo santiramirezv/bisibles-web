@@ -231,10 +231,14 @@
         return;
       }
       var base = cont.getBoundingClientRect().top;
+      // En celulares la barra del navegador puede tapar la parte de abajo de lo que el navegador
+      // informa como visible: se deja un margen para que el contador y las flechas siempre se vean.
+      var margen = tactil ? 72 : 0;
       ov.style.top = (top - base) + 'px';
-      ov.style.height = (bot - top) + 'px';
+      ov.style.height = Math.max(320, bot - top - margen) + 'px';
       s.medir();
     }
+    var tactil = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
     this.io = new IntersectionObserver(function (es) {
       es.forEach(function (e) {
         if (e.isIntersecting && e.intersectionRect.height > 0) vis[e.target.__i] = e.intersectionRect;
